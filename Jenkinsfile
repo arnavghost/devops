@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "hello-flask"
         CONTAINER_NAME = "hello-flask-container"
-        PORT = "5000"
+        PORT = "5001"
     }
 
     stages {
@@ -19,13 +19,14 @@ pipeline {
             steps {
                 echo "🧹 Removing old containers and images..."
                 sh '''
-                if docker ps -q --filter "name=${CONTAINER_NAME}" | grep -q .; then
-                    docker stop ${CONTAINER_NAME}
-                    docker rm ${CONTAINER_NAME}
-                fi
-                if docker images -q ${IMAGE_NAME} | grep -q .; then
-                    docker rmi -f ${IMAGE_NAME}
-                fi
+                echo "Listing containers..."
+                docker ps -a
+
+                echo "Stopping and removing containers..."
+                docker ps -aq | xargs -r docker rm -f || true
+
+                echo "Removing images..."
+                docker images -q | xargs -r docker rmi -f || true
                 '''
             }
         }
@@ -33,21 +34,25 @@ pipeline {
         stage("Build Docker Image") {
             steps {
                 echo "⚙️ Building Docker image..."
-                sh "docker build -t ${IMAGE_NAME}:latest ."
+                sh '''
+                docker build -t ${IMAGE_NAME}:latest .
+                '''
             }
         }
 
         stage("Deploy Container") {
             steps {
                 echo "🚀 Deploying container..."
-                sh "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:5000 ${IMAGE_NAME}:latest"
+                sh '''
+                docker run -d --name ${CONTAINER_NAME} -p ${PORT}:5000 ${IMAGE_NAME}:latest
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ Deployment successful! Flask app running at http://localhost:${PORT}"
+            echo "✅ Deployment successful! Application is running at http://localhost:${PORT}"
         }
         failure {
             echo "❌ Deployment failed! Check Jenkins logs for details."
